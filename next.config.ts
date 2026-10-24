@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // En Next.js 15, allowedDevOrigins puede ir en primer nivel o experimental
+  allowedDevOrigins: ["localhost", "127.0.0.1", "192.168.1.133"],
   images: {
     remotePatterns: [
       {
