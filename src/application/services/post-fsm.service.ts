@@ -3,7 +3,17 @@
  * @description Servicio que implementa la Máquina de Estados Finitos (FSM) y guardas de negocio.
  */
 
-import { randomUUID } from 'node:crypto';
+// Generador UUID universal compatible con browser (Web Crypto API) y Node.js (globalThis.crypto)
+function generateUUID(): string {
+  if (typeof globalThis !== 'undefined' && globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 import {
   VALID_POST_TRANSITIONS,
   type PostComment,
@@ -70,7 +80,7 @@ export class PostFsmService {
 
     if (targetState === 'scheduled') {
       scheduledAt = this.validateSchedulingGuards(post, payload, now);
-      idempotencyKey = randomUUID();
+      idempotencyKey = generateUUID();
     } else if (post.state === 'scheduled' && targetState !== 'publishing') {
       // Si se des-agenda o modifica, invalidamos cerrojo previo
       idempotencyKey = null;
@@ -168,7 +178,7 @@ export class PostFsmService {
 
     const commentObj = typeof payload?.comment === 'object' ? payload.comment : undefined;
     const newComment: PostComment = {
-      id: commentObj?.id ?? randomUUID(),
+      id: commentObj?.id ?? generateUUID(),
       authorId: commentObj?.authorId ?? (isChangesRequested ? 'client' : 'cm'),
       authorRole: commentObj?.authorRole ?? (isChangesRequested ? 'client' : 'cm'),
       content: rawContent,

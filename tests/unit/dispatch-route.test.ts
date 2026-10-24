@@ -5,11 +5,11 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { POST } from '@/app/api/tasks/dispatch-post/route';
 import {
-  POST,
   setWorkerServiceForTesting,
   timingSafeCompare,
-} from '@/app/api/tasks/dispatch-post/route';
+} from '@/app/api/tasks/dispatch-post/dispatch.helpers';
 import {
   DispatchWorkerService,
   TransientDispatchError,
