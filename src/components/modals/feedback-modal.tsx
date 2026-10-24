@@ -87,7 +87,7 @@ export function FeedbackModal({
           />
           <p className="text-[11px] text-muted-foreground">
             Este comentario se registrará en el historial de auditoría y devolverá el post al estado
-            <span className="font-semibold text-amber-400"> 'Cambios Solicitados'</span>.
+            <span className="font-semibold text-amber-400"> &ldquo;Cambios Solicitados&rdquo;</span>.
           </p>
         </div>
 
