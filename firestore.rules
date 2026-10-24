@@ -1,0 +1,300 @@
+rules_version = '2';
+
+/**
+ * @file firestore.rules
+ * @description Cloud Firestore Security Rules for Social Ops Dashboard (v0.1.0 MVP Instagram-First).
+ * Implements strict RBAC ('cm' and 'client' roles), FSM state transition guards,
+ * deep field validation, immutability barriers, and resource exhaustion mitigation.
+ */
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: posts
+    // Document ID: {postId}
+    // Fields:
+    //   - id: string (required, 1-100 chars, matches postId, immutable)
+    //   - clientId: string (required, 1-100 chars, immutable)
+    //   - authorId: string (required, 1-100 chars, matches creator UID, immutable)
+    //   - title: string (required, 1-200 chars)
+    //   - briefingScript: string (optional, 0-5000 chars)
+    //   - state: string (required, PostState enum)
+    //   - platform: string (required, strictly 'instagram', immutable)
+    //   - format: string (required, in ['feed_post', 'carousel', 'reel'])
+    //   - copy: map (required, InstagramCopyData: caption, characterCount, characterLimit, hashtags, isValid, firstComment)
+    //   - media: list (required, max 10 InstagramMediaAsset items)
+    //   - scheduledAt: string or null (optional, ISO-8601 UTC)
+    //   - cloudTaskName: string or null (optional, max 500 chars)
+    //   - idempotencyKey: string or null (optional, max 100 chars)
+    //   - comments: list (required, max 100 PostComment items)
+    //   - publishedAt: string or null (optional, ISO-8601 UTC)
+    //   - publishResult: map (optional, PostPublishResult)
+    //   - createdAt: string or timestamp (required, ISO-8601 UTC, immutable)
+    //   - updatedAt: string or timestamp (required, ISO-8601 UTC)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions: Authentication & RBAC
+    // ===============================================================
+
+    /**
+     * Verifies that the incoming request is authenticated via Firebase Auth.
+     */
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    /**
+     * Verifies that the authenticated user possesses the Community Manager ('cm') role.
+     * Evaluated against Firebase Auth Custom Claims.
+     */
+    function isCM() {
+      return isAuthenticated() &&
+             'role' in request.auth.token &&
+             request.auth.token.role == 'cm';
+    }
+
+    /**
+     * Verifies that the authenticated user possesses the Client ('client') role
+     * and is authorized for the specific clientId owning the post.
+     * Evaluated against Firebase Auth Custom Claims ('clientId' or 'client_id').
+     */
+    function isClient(clientId) {
+      return isAuthenticated() &&
+             'role' in request.auth.token &&
+             request.auth.token.role == 'client' &&
+             (('clientId' in request.auth.token && request.auth.token.clientId == clientId) ||
+              ('client_id' in request.auth.token && request.auth.token.client_id == clientId));
+    }
+
+    // ===============================================================
+    // Helper Functions: Domain & FSM Transitions
+    // ===============================================================
+
+    /**
+     * Validates that the post state is a member of the canonical PostState union.
+     */
+    function isValidPostState(state) {
+      return state in [
+        'idea',
+        'in_progress',
+        'in_review',
+        'changes_requested',
+        'approved',
+        'scheduled',
+        'publishing',
+        'published',
+        'failed'
+      ];
+    }
+
+    /**
+     * Validates state transitions in accordance with VALID_POST_TRANSITIONS matrix.
+     */
+    function isValidTransition(from, to) {
+      return (from == 'idea' && to == 'in_progress') ||
+             (from == 'in_progress' && to == 'in_review') ||
+             (from == 'in_review' && (to == 'changes_requested' || to == 'approved')) ||
+             (from == 'changes_requested' && to == 'in_progress') ||
+             (from == 'approved' && (to == 'scheduled' || to == 'in_progress')) ||
+             (from == 'scheduled' && (to == 'in_progress' || to == 'approved' || to == 'publishing')) ||
+             (from == 'publishing' && (to == 'published' || to == 'failed')) ||
+             (from == 'failed' && to == 'in_progress');
+    }
+
+    /**
+     * Validates ISO-8601 UTC date string format or native Firestore Timestamp.
+     */
+    function isValidIsoDate(dateVal) {
+      return (dateVal is string &&
+              dateVal.size() <= 50 &&
+              dateVal.matches('^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$')) ||
+             dateVal is timestamp;
+    }
+
+    /**
+     * Validates the Instagram copy data structure and strict length limits.
+     */
+    function isValidCopy(copy) {
+      return copy is map &&
+             copy.keys().hasAll(['caption', 'characterCount', 'characterLimit', 'hashtags', 'isValid']) &&
+             copy.keys().hasOnly(['caption', 'characterCount', 'characterLimit', 'hashtags', 'isValid', 'firstComment']) &&
+             copy.caption is string && copy.caption.size() <= 2200 &&
+             copy.characterCount is number && copy.characterCount >= 0 && copy.characterCount <= 2200 &&
+             copy.characterLimit is number && copy.characterLimit == 2200 &&
+             copy.hashtags is list && copy.hashtags.size() <= 30 &&
+             copy.isValid is bool &&
+             (!('firstComment' in copy) || (copy.firstComment is string && copy.firstComment.size() <= 2200));
+    }
+
+    /**
+     * Validates media array size boundaries to mitigate payload resource exhaustion.
+     */
+    function isValidMediaList(media) {
+      return media is list && media.size() <= 10;
+    }
+
+    /**
+     * Validates comments array size boundaries.
+     */
+    function isValidCommentsList(comments) {
+      return comments is list && comments.size() <= 100;
+    }
+
+    /**
+     * Validates publish result metadata map if present.
+     */
+    function isValidPublishResult(publishResult) {
+      return publishResult == null ||
+             (publishResult is map &&
+              publishResult.keys().hasOnly(['mediaContainerId', 'mediaId', 'permalink', 'error']) &&
+              (!('mediaContainerId' in publishResult) || (publishResult.mediaContainerId is string && publishResult.mediaContainerId.size() <= 200)) &&
+              (!('mediaId' in publishResult) || (publishResult.mediaId is string && publishResult.mediaId.size() <= 200)) &&
+              (!('permalink' in publishResult) || (publishResult.permalink is string && publishResult.permalink.size() <= 1000)) &&
+              (!('error' in publishResult) || (publishResult.error is string && publishResult.error.size() <= 2000)));
+    }
+
+    /**
+     * Strict schema and type validator for the entire PostDocument.
+     * Enforces hasAll, hasOnly, and defensive type/size limits on every property.
+     */
+    function isValidPost(data) {
+      let allowedKeys = [
+        'id', 'clientId', 'authorId', 'title', 'briefingScript',
+        'state', 'platform', 'format', 'copy', 'media',
+        'scheduledAt', 'cloudTaskName', 'idempotencyKey',
+        'comments', 'publishedAt', 'publishResult',
+        'createdAt', 'updatedAt'
+      ];
+      let requiredKeys = [
+        'id', 'clientId', 'authorId', 'title',
+        'state', 'platform', 'format', 'copy',
+        'media', 'comments', 'createdAt', 'updatedAt'
+      ];
+
+      return data.keys().hasAll(requiredKeys) &&
+             data.keys().hasOnly(allowedKeys) &&
+             data.id is string && data.id.size() >= 1 && data.id.size() <= 100 &&
+             data.clientId is string && data.clientId.size() >= 1 && data.clientId.size() <= 100 &&
+             data.authorId is string && data.authorId.size() >= 1 && data.authorId.size() <= 100 &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 200 &&
+             (!('briefingScript' in data) || (data.briefingScript is string && data.briefingScript.size() <= 5000)) &&
+             isValidPostState(data.state) &&
+             data.platform == 'instagram' &&
+             data.format in ['feed_post', 'carousel', 'reel'] &&
+             isValidCopy(data.copy) &&
+             isValidMediaList(data.media) &&
+             (!('scheduledAt' in data) || data.scheduledAt == null || isValidIsoDate(data.scheduledAt)) &&
+             (!('cloudTaskName' in data) || data.cloudTaskName == null || (data.cloudTaskName is string && data.cloudTaskName.size() <= 500)) &&
+             (!('idempotencyKey' in data) || data.idempotencyKey == null || (data.idempotencyKey is string && data.idempotencyKey.size() <= 100)) &&
+             isValidCommentsList(data.comments) &&
+             (!('publishedAt' in data) || data.publishedAt == null || isValidIsoDate(data.publishedAt)) &&
+             isValidPublishResult(data.publishResult) &&
+             isValidIsoDate(data.createdAt) &&
+             isValidIsoDate(data.updatedAt);
+    }
+
+    /**
+     * Prevents tamper attempts on immutable identity and creation metadata.
+     */
+    function areImmutableFieldsUnchanged(postId) {
+      return request.resource.data.id == resource.data.id &&
+             request.resource.data.id == postId &&
+             request.resource.data.clientId == resource.data.clientId &&
+             request.resource.data.authorId == resource.data.authorId &&
+             request.resource.data.createdAt == resource.data.createdAt &&
+             request.resource.data.platform == resource.data.platform;
+    }
+
+    /**
+     * Validates that an incoming comment appended by a client is strictly structured,
+     * non-empty, and authenticated as the client itself.
+     */
+    function isValidClientCommentAdded(prevComments, nextComments) {
+      let prevSize = prevComments.size();
+      let newComment = nextComments[prevSize];
+      return nextComments.size() == prevSize + 1 &&
+             newComment is map &&
+             newComment.keys().hasAll(['id', 'authorId', 'authorRole', 'content', 'createdAt']) &&
+             newComment.authorId == request.auth.uid &&
+             newComment.authorRole == 'client' &&
+             newComment.content is string &&
+             newComment.content.size() > 0 &&
+             newComment.content.size() <= 2000;
+    }
+
+    // ===============================================================
+    // Collection Rules: posts/{postId}
+    // ===============================================================
+
+    match /posts/{postId} {
+      // 1. Read: CMs can read all agency posts; Clients can only read posts for their assigned clientId
+      allow read: if isCM() ||
+                     (resource != null && isClient(resource.data.clientId));
+
+      // 2. Create: Only CMs can create posts. Must start in 'idea' or 'in_progress', bound to their UID
+      allow create: if isCM() &&
+                       request.resource.data.id == postId &&
+                       request.resource.data.authorId == request.auth.uid &&
+                       request.resource.data.state in ['idea', 'in_progress'] &&
+                       isValidPost(request.resource.data);
+
+      // 3. Update: Granular RBAC enforcing distinct capabilities for CM and Client
+      allow update: if isValidPost(request.resource.data) &&
+                       areImmutableFieldsUnchanged(postId) &&
+                       (
+                         // -----------------------------------------------------------
+                         // Case A: Client Approval or Changes Request flow
+                         // -----------------------------------------------------------
+                         (
+                           isClient(resource.data.clientId) &&
+                           resource.data.state == 'in_review' &&
+                           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'comments', 'updatedAt']) &&
+                           (
+                             // Subcase A1: Client Approves post
+                             (request.resource.data.state == 'approved' &&
+                              request.resource.data.comments.size() >= resource.data.comments.size()) ||
+                             // Subcase A2: Client Requests Changes (mandatory comment appended)
+                             (request.resource.data.state == 'changes_requested' &&
+                              isValidClientCommentAdded(resource.data.comments, request.resource.data.comments))
+                           )
+                         )
+                         ||
+                         // -----------------------------------------------------------
+                         // Case B: CM updates drafts and manages editorial lifecycle
+                         // -----------------------------------------------------------
+                         (
+                           isCM() &&
+                           resource.data.state != 'published' &&
+                           resource.data.state != 'publishing' &&
+                           (
+                             // Subcase B1: CM edits draft content in editable states without changing state
+                             (
+                               request.resource.data.state == resource.data.state &&
+                               resource.data.state in ['idea', 'in_progress', 'changes_requested', 'approved', 'scheduled']
+                             )
+                             ||
+                             // Subcase B2: CM transitions state according to FSM
+                             // Note: CM cannot self-approve (in_review -> approved is client-only)
+                             // and cannot directly set publishing or published (server/worker only)
+                             (
+                               request.resource.data.state != resource.data.state &&
+                               isValidTransition(resource.data.state, request.resource.data.state) &&
+                               resource.data.state != 'in_review' &&
+                               !(request.resource.data.state in ['publishing', 'published'])
+                             )
+                           )
+                         )
+                       );
+
+      // 4. Delete: Only CMs can delete posts, and only before approval/scheduling/publishing
+      allow delete: if isCM() &&
+                       resource.data.state in ['idea', 'in_progress', 'changes_requested'];
+    }
+  }
+}
