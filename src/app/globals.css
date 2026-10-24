@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Fluid Typography Variables (clamp) */
+    --font-display-lg: clamp(1.75rem, 1.25rem + 1.5vw, 2.25rem);
+    --font-headline-lg: clamp(1.35rem, 1.1rem + 1vw, 1.75rem);
+    --font-headline-md: clamp(1.15rem, 0.95rem + 0.6vw, 1.35rem);
+    --font-headline-sm: clamp(1rem, 0.9rem + 0.3vw, 1.15rem);
+    --font-body-lg: clamp(1rem, 0.95rem + 0.2vw, 1.05rem);
+    --font-body-md: clamp(0.875rem, 0.825rem + 0.15vw, 0.925rem);
+    --font-body-sm: clamp(0.785rem, 0.75rem + 0.1vw, 0.825rem);
+    --font-mono-md: clamp(0.8125rem, 0.775rem + 0.1vw, 0.875rem);
+    --font-mono-sm: clamp(0.6875rem, 0.65rem + 0.1vw, 0.75rem);
+
+    /* Modo Claro */
+    --background: 210 20% 98%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 210 40% 96%;
+    --accent-foreground: 222 47% 11%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+
+    --radius: 0.5rem;
+
+    /* Estados de la FSM (Modo Claro) */
+    --status-idea: 215 16% 47%;
+    --status-in-progress: 199 89% 48%;
+    --status-in-review: 38 92% 50%;
+    --status-changes-requested: 14 90% 55%;
+    --status-approved: 158 64% 42%;
+    --status-scheduled: 262 83% 58%;
+    --status-publishing: 280 65% 60%;
+    --status-published: 142 71% 45%;
+    --status-failed: 0 84% 60%;
+  }
+
+  .dark {
+    /* Modo oscuro: Fondos profundos pizarra/zinc (sin negro puro #000000 para evitar fatiga visual) */
+    --background: 222 47% 7%;              /* #0a0f1d - Canvas Principal 60% */
+    --foreground: 210 40% 98%;             /* #f8fafc - Texto Principal */
+
+    --card: 222 40% 11%;                   /* #111827 - Superficie Cards 30% */
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222 40% 11%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217 91% 60%;                /* #3b82f6 - Azul Primario Operativo 10% */
+    --primary-foreground: 222 47% 11%;
+
+    --secondary: 217 33% 16%;              /* #1b2537 - Superficie Secundaria */
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217 33% 16%;
+    --muted-foreground: 215 20% 65%;       /* #94a3b8 - Textos Terciarios */
+
+    --accent: 217 33% 20%;                 /* #233047 - Superficie Activa */
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217 33% 20%;                 /* #233047 - Delimitadores de 1px */
+    --input: 217 33% 20%;
+    --ring: 217 91% 60%;
+
+    /* Estados FSM adaptados a contraste oscuro WCAG AA */
+    --status-idea: 215 20% 65%;             /* #94a3b8 */
+    --status-in-progress: 199 89% 55%;      /* #38bdf8 */
+    --status-in-review: 38 92% 55%;         /* #f59e0b */
+    --status-changes-requested: 14 90% 60%; /* #f97316 */
+    --status-approved: 158 64% 48%;         /* #10b981 */
+    --status-scheduled: 262 83% 65%;        /* #8b5cf6 */
+    --status-publishing: 280 65% 68%;       /* #a855f7 */
+    --status-published: 142 71% 52%;        /* #22c55e */
+    --status-failed: 0 84% 65%;             /* #ef4444 */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  button, a, input, select, textarea {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background;
+  }
+}
+
+@layer utilities {
+  /* Badges y chips de estado FSM reactivos */
+  .badge-status-idea {
+    @apply bg-[hsl(var(--status-idea)/0.12)] text-[hsl(var(--status-idea))] border-[hsl(var(--status-idea)/0.3)];
+  }
+  .badge-status-in-progress {
+    @apply bg-[hsl(var(--status-in-progress)/0.12)] text-[hsl(var(--status-in-progress))] border-[hsl(var(--status-in-progress)/0.3)];
+  }
+  .badge-status-in-review {
+    @apply bg-[hsl(var(--status-in-review)/0.12)] text-[hsl(var(--status-in-review))] border-[hsl(var(--status-in-review)/0.3)];
+  }
+  .badge-status-changes-requested {
+    @apply bg-[hsl(var(--status-changes-requested)/0.12)] text-[hsl(var(--status-changes-requested))] border-[hsl(var(--status-changes-requested)/0.3)];
+  }
+  .badge-status-approved {
+    @apply bg-[hsl(var(--status-approved)/0.12)] text-[hsl(var(--status-approved))] border-[hsl(var(--status-approved)/0.3)];
+  }
+  .badge-status-scheduled {
+    @apply bg-[hsl(var(--status-scheduled)/0.12)] text-[hsl(var(--status-scheduled))] border-[hsl(var(--status-scheduled)/0.3)];
+  }
+  .badge-status-publishing {
+    @apply bg-[hsl(var(--status-publishing)/0.12)] text-[hsl(var(--status-publishing))] border-[hsl(var(--status-publishing)/0.3)] animate-pulse;
+  }
+  .badge-status-published {
+    @apply bg-[hsl(var(--status-published)/0.12)] text-[hsl(var(--status-published))] border-[hsl(var(--status-published)/0.3)];
+  }
+  .badge-status-failed {
+    @apply bg-[hsl(var(--status-failed)/0.12)] text-[hsl(var(--status-failed))] border-[hsl(var(--status-failed)/0.3)];
+  }
+
+  /* Ratios de aspecto nativos de Instagram */
+  .aspect-instagram-feed-square {
+    aspect-ratio: 1 / 1;
+  }
+  .aspect-instagram-feed-portrait {
+    aspect-ratio: 4 / 5;
+  }
+  .aspect-instagram-reel {
+    aspect-ratio: 9 / 16;
+  }
+
+  /* Ergonomía táctil para botones e iconos mínimos de 48px */
+  .tap-target-48 {
+    @apply min-h-[48px] min-w-[48px] inline-flex items-center justify-center;
+  }
+}
