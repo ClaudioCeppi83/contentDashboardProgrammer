@@ -10,6 +10,21 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  webpack: (config, { dev }) => {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: [
+          "**/.git/**",
+          "**/.agents/**",
+          "**/docs/**",
+          "**/tests/**",
+          "**/node_modules/**",
+        ],
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;
