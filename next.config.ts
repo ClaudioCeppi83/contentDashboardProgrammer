@@ -13,7 +13,8 @@ const nextConfig: NextConfig = {
   webpack: (config, { dev }) => {
     if (dev) {
       config.watchOptions = {
-        ...config.watchOptions,
+        poll: 800, // Intervalo de sondeo en ms: evita inotify y erradica ENOSPC
+        aggregateTimeout: 300,
         ignored: [
           "**/.git/**",
           "**/.agents/**",
