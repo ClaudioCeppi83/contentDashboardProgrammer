@@ -16,16 +16,10 @@ import {
   AICopyInvalidRequestError,
 } from '@/domain/adapters/ai-copy-provider.interface';
 
-let testingService: AICopyService | null = null;
-
-/**
- * Permite inyectar un servicio simulado para pruebas unitarias y de integración.
- */
-export function setAICopyServiceForTesting(service: AICopyService | null): void {
-  testingService = service;
-}
+import { getTestingAICopyService } from './testing';
 
 function getService(): AICopyService {
+  const testingService = getTestingAICopyService();
   if (testingService) {
     return testingService;
   }

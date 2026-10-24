@@ -5,10 +5,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import {
-  POST,
-  setAICopyServiceForTesting,
-} from '@/app/api/ai/adapt-copy/route';
+import { POST } from '@/app/api/ai/adapt-copy/route';
+import { setAICopyServiceForTesting } from '@/app/api/ai/adapt-copy/testing';
 import { AICopyService } from '@/application/services/ai-copy.service';
 import { MockAICopyProvider } from '@/infrastructure/ai/mock-ai-copy.provider';
 import { AICopyInvalidRequestError } from '@/domain/adapters/ai-copy-provider.interface';
