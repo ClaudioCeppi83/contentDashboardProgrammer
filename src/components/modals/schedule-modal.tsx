@@ -6,7 +6,7 @@
  * Valida que la fecha sea estrictamente futura (> now + 2 minutos) según la FSM.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal } from '@/components/ui/modal';
 import { Button } from '@/components/ui/button';
 import { Calendar, AlertCircle } from 'lucide-react';
@@ -29,7 +29,7 @@ export function ScheduleModal({
   isSubmitting = false,
 }: ScheduleModalProps) {
   // Inicializar con la fecha actual + 1 hora en formato 'YYYY-MM-DDTHH:mm'
-  const getDefaultDateTime = () => {
+  const getDefaultDateTime = useCallback(() => {
     if (currentScheduledAt) {
       const parsed = new Date(currentScheduledAt);
       if (!isNaN(parsed.getTime()) && parsed.getTime() > Date.now() + 2 * 60 * 1000) {
@@ -38,9 +38,9 @@ export function ScheduleModal({
     }
     const defaultDate = new Date(Date.now() + 60 * 60 * 1000);
     return defaultDate.toISOString().slice(0, 16);
-  };
+  }, [currentScheduledAt]);
 
-  const [dateTimeValue, setDateTimeValue] = useState(getDefaultDateTime());
+  const [dateTimeValue, setDateTimeValue] = useState(getDefaultDateTime);
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,7 +48,7 @@ export function ScheduleModal({
       setDateTimeValue(getDefaultDateTime());
       setValidationError(null);
     }
-  }, [isOpen, currentScheduledAt]);
+  }, [isOpen, getDefaultDateTime]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
